@@ -280778,7 +280778,7 @@ const lexicon = [
 
     html, body {height: 100dvh; width: fit-contents; margin: 0; touch-action: none; background: linear-gradient(180deg, #3f0071 0%, #6a00ff 100%);}
 
-    .super	{height: 100%; width: 100%}
+    .super	{height: 100dvh; width: 100dvw; }
 
     .board	{display: grid; height: 95vw; gap: 20px; padding: 20px; grid-template-columns: 1fr 1fr 1fr 1fr; flex-shrink: 0;}
     .die	{display: flex; justify-content: center; align-items: center;}
@@ -280786,11 +280786,11 @@ const lexicon = [
 
     .menu	{display: flex; flex-direction: column; height: 35vh; flex: 1; justify-content: center;}
 
-    .timer	{min-height: 20%; max-width: 99%; margin: 0.5vw; text-align: center; line-height: 0; font-size:12vw; font-family: Monaco, monospace; background-color: #10fc31; border: 10px solid #00a656; border-radius: 2vw;}
+    .timer	{min-height: 20%; max-width: 99%; margin: 0.5vw; text-align: center; line-height: 0; font-size:12vw; font-family: Monaco, monospace; background-color: #10fc31; border: 1vw solid #00a656; border-radius: 2vw;}
 
     .selector	{display: flex; flex-direction: row; max-height: 5vh; gap: 0.5vw; padding: 0.25vw 0.5vw; overflow: hidden;}
     .selected	{min-width: 0; text-align: center; line-height: 1.6vh; font-size: 5vw; flex: 1; background-color: transparent; font-family: 'Roboto Condensed', sans-serif; font-weight: 500; color: white; 
-		border: 0.5vw solid #ff2dd5; border-radius: 2vw; box-shadow: 0 0 10px rgba(255, 45, 213, 0.5); }
+		border: 0.5vw solid #ff2dd5; border-radius: 2vw; box-shadow: 0 0 10px rgba(255, 45, 213, 0.5);}
 
     .paper	{display: flex; flex-direction: row; margin: 0.5vw; flex: 1; background-color: transparent; border: 0.5vw solid #ff2dd5; border-radius: 2vw;}
     .col	{display: flex; flex-direction: column; padding: 1vh; text-align: center; flex: 1;}
@@ -280803,15 +280803,15 @@ const lexicon = [
 @media(orientation: landscape){
     .super	{display: flex;}
 
-    .board	{height: 90vh; width: 90vh;}
-    .sensor	{padding: 0; font-size: 6vw;}
+    .board	{height: 90%; width: 90dvh;}
+    .sensor	{padding: 0; font-size: 5vw;}
 
-    .menu	{height: 100vh;}
+    .menu	{height: 90%; max-width: 100%; padding: 20px; overflow: hidden;}
 
-    .timer	{height: 15%; max-width: 98%; font-size:6vw;}
+    .timer	{height: 15%; max-width: 98%; font-size:6vw; border: 0.5vw solid #00a656;}
     
-    .selector	{max-height: 8vw;}
-    .selected	{font-size: 4vw;}
+    .selector	{max-height: 8vw; max-width: 100%;}
+    .selected	{font-size: 4vw; }
 
     .words	{font-size: 2vw; line-height: 2vw;}
 }
@@ -280884,6 +280884,7 @@ let answers		= [];	// As the board is solved, this answer list will be populated
 
 let timer_state		= 0;	// 0: "Start", 1: <counting down>, 2: Displays time, click to check words
 let timer_time		= 180;	// The current countdown time
+const col_height	= 10;   // Number of rows in the column of words on paper
 </script>
 
 
@@ -281101,8 +281102,22 @@ document.getElementById("timer").addEventListener("click", async (evt)=>{
 
 // Logs all swipe events
 document.getElementById("board").addEventListener("touchmove", (evt) => {
-    const board = document.getElementById("board");
+    
+    // If there is a current Q word event ongoing, end it.
 
+    const selecteds = document.getElementById("selector").children;
+    if(selecteds[0].readonly){
+        for(let n of selecteds){
+                n.readOnly = false;
+                n.style.display = "none";
+            }
+        selecteds[0].style.display = "block";
+        selecteds.children[0].value = "";
+    }
+
+    // Find out which die was swiped over and call correct behaviour
+
+    const board = document.getElementById("board");
     for (const touch of evt.changedTouches) for (const b of board.children) {
         const box = b.children[0];
         const rect = box.getBoundingClientRect();
@@ -281111,17 +281126,21 @@ document.getElementById("board").addEventListener("touchmove", (evt) => {
                 touch.pageX > rect.left && touch.pageX < rect.right &&
                 touch.pageY > rect.top && touch.pageY < rect.bottom
         ) {
-            if (box !== lastactive) {
-                const lastPast = pastactive[pastactive.length - 1];
-                if (box === lastPast) {
+
+            // If it's not the same box that was swiped over, 
+            //     check if it was the previous box (undo action)
+            //     or a new box (new letter added to word)
+
+            if (box !== lastactive) 
+                if (box === pastactive[pastactive.length - 1]) {
                     toggleClass(lastactive, "path", "inactive");
                     lastactive = pastactive.pop();
                 } else if (!pastactive.includes(box)) {
                     if (lastactive) pastactive.push(lastactive);
                     lastactive = box;
                 }
-            }
-
+            
+            // Set the colours
             for (const el of pastactive) toggleClass(el, "inactive", "path");
             toggleClass(lastactive, "inactive", "path");
         }
@@ -281130,25 +281149,33 @@ document.getElementById("board").addEventListener("touchmove", (evt) => {
 
 // Compiles swipe event and gets the selected word, clearing the swipe stack.
 document.getElementById("board").addEventListener("touchend", (evt) => {
+
+    // Assemble the word formed
     let selected = "";
     if (lastactive) pastactive.push(lastactive);
     for (const element of pastactive) {
         toggleClass(element, "path", "inactive");
         selected += element.textContent;
     }
+
+    // Display the word form in the first selected
     const selector = document.getElementById("selector");
-    selector.children[0].value = new String(selected);
-    if (selected.includes('Q') || selected.includes('q')) {
+    selector.children[0].value = selected;
+
+    // Call a Q word event if required, else add to written words if longer than 2 letters
+    if (selected.includes('Q')) {
         selector.children[1].value = selected.replace('Q', 'QU');
         for (const e of selector.children) {
             e.style.display = "block";
             e.readOnly = true;
         }
     } else if (selected.length > 2) {
-        document.getElementById("paper").children[Math.floor(cursor / 12)].children[cursor % 12].textContent = selected;
+        document.getElementById("paper").children[Math.floor(cursor / col_height)].children[cursor % col_height].textContent = selected;
         written_words.push(selected.toUpperCase());
-        cursor = written_words.length % (12 * 3);
+        cursor = written_words.length % (col_height * 3);
     }
+
+    // Clear stack
     lastactive = null;
     pastactive = [];
 });
@@ -281159,14 +281186,16 @@ for(let e of document.getElementById("selector").children){
         if(e.readOnly){
             console.log(e.value);
             e.blur();
-            for(let n of document.getElementById("selector").children) n.readOnly = false;
-            for(let n of document.getElementById("selector").children) n.style.display = "none";
+            for(let n of document.getElementById("selector").children){
+                n.readOnly = false;
+                n.style.display = "none";
+            }
             document.getElementById("selector").children[0].style.display = "block";
             document.getElementById("selector").children[0].value = e.value;
             if(e.value.length < 3) return;
-            document.getElementById("paper").children[Math.floor(cursor/12)].children[cursor%12].textContent = e.value;
+            document.getElementById("paper").children[Math.floor(cursor / col_height)].children[cursor % col_height].textContent = e.value;
             written_words.push(e.value.toUpperCase());
-            cursor = written_words.length % (12*3);
+            cursor = written_words.length % (col_height * 3);
         }
         else e.value = "";
     });
@@ -281177,29 +281206,31 @@ document.getElementById("selector").children[0].addEventListener("keydown", func
     if(event.key==="Enter"){
         const value = document.getElementById("selector").children[0].value;
         if(value.length < 3) return;
-        document.getElementById("paper").children[Math.floor(cursor/12)].children[cursor%12].textContent = value;
+        document.getElementById("paper").children[Math.floor(cursor / col_height)].children[cursor % col_height].textContent = value;
         written_words.push(value.toUpperCase());
-        cursor = written_words.length % (12*3);
+        cursor = written_words.length % (col_height * 3);
         document.getElementById("selector").children[0].value = '';
     }
 });
 
-const title = ['H', 'T', 'M', 'L', 'W', 'O', 'R', 'D', 'T', 'I', 'M', 'E', 'L', 'M', 'A', 'O'];
-for (let i = 0; i < 16; i++) document.getElementById("board").children[i].children[0].textContent = title[i];
+for (let i = 0; i < 16; i++) 
+    document.getElementById("board").children[i].children[0].textContent = "HTMLWORDTIMELMAO"[i];
+
 alert(`
-Press the start button to start.
+Press the start button to start. 
+Press the timer (once it has finished loading) to see your score. 
+Press the timer again to replay.
 
-Swipe the words you find that you think are valid.
+[Mobile]
+Swipe the words you find that you think are valid. 
 Swipe in the reversed direction to undo. 
-If your swiped word contains a Q, you will be asked specify if you meant it to be Qu and Q. 
-Select the correct word. \n
+Q can be either a Q or Qu, so pick one if prompted. 
+You may also type into the box directly.
 
-If typing is desired (desktop), one can also type into the box directly like in the desktop version. 
+[Desktop]
+Type your words into the box directly.
 
-Press the timer (once it has finished loading) to see your score. Press the timer again to replay.
+');
 
-Please report any bugs to the NTU Hall 6 Word Games Team. 
-
-This application was developed with strong support from the Visual Arts Society Alumni.
-`);
 </script>
+</html>
