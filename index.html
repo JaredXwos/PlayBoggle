@@ -280967,7 +280967,7 @@ class Dice {
                     return true;
             }
             if(!word.includes('QU')) return false;
-            word.replace('QU','Q');
+            word = word.replace('QU','Q');
             for(let i = 0; i < 4; i++) for(let j = 0; j < 4; j++){
                 // console.log(Dice.iterativeSearch(word, i, j));
                 if(Dice.values[i*4+j] === word[0] && Dice.iterativeSearch(word, i, j))
